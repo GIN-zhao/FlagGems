@@ -49,8 +49,8 @@ def triton_addmm(
     offset_k = tl.arange(0, BLOCK_SIZE_K)
     
 
-    a_ptrs = a_ptr + offset_m[:, None] * am_stride + offset_n[None, :] * ak_stride
-    b_ptrs = b_ptr + offset_m[:, None] * bk_stride + offset_n[None, :] * bn_stride
+    a_ptrs = a_ptr + offset_m[:, None] * am_stride + offset_k[None, :] * ak_stride
+    b_ptrs = b_ptr + offset_k[:, None] * bk_stride + offset_n[None, :] * bn_stride
     bias_ptrs = bias_ptr + offset_n   
     
     accumulator = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32) 
