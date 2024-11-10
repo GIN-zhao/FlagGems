@@ -4,7 +4,7 @@ import torch
 import triton
 import triton.language as tl
 
-from ..utils import libentry
+from flag_gems.utils import libentry
 
 
 def heur_divisible_m(args):
