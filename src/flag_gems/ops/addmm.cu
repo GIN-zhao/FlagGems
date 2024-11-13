@@ -1,43 +1,30 @@
-const int ROW_TILE_WIDTH = 16;
-const int COL_TILE_WIDTH = 16;
-template <typename MATRIX_T, typename BIAS_T>
-__global__ void addmm_kernel(const MATRIX_T *A, const MATRIX_T *B, const BIAS_T *bias, MATRIX_T *C,
-                             int M, int N, int K, int alpha, int beta)
+const int BLOCK_SIZE = 16;
+
+template <typename MATRIX_T>
+void __global__ mm_kernel(MATRIX_T matrix_a, MATRIX_T matrix_b, MATRIX_T &matrix_c, int M, int K, int N)
 {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
 
-    // add the shared memory
-    __shared__ T shATile[ROW_TILE_WIDTH][COL_TILE_WIDTH];
-    __shared__ T shBTile[ROW_TILE_WIDTH][COL_TILE_WIDTH];
+    __shared__ float sh_a[BLOCK_SIZE][BLOCK_SIZE];
+    __shared__ float sh_b[BLOCK_SIZE][BLOCK_SIZE];
 
-    for (int p = 0; p < K / COL_TILE_WIDTH; p += COL_TILE_WIDTH)
+    int xidx = threadIdx.x;
+    int yidx = threadIdx.y;
+    int tiles = (K + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    float acc = 0.0;
+    for (int tile = 0; tile < tiles; tile++)
     {
-        if (threadIdx.y < ROW_TILE_WIDTH && threadIdx.x < COL_TILE_WIDTH)
+        sh_a[xidx][yidx] = matrix_a[x * K + tile * BLOCK_SIZE + yidx];
+        sh_b[xidx][yidx] = matrix_b[(tile * BLOCK_SIZE + xidx) * N + y]
+
+            __syncthreads();
+        for (int k = 0; k < BLOCK_SIZE; k++)
         {
-            shATile[threadIdx.x][threadIdx.y] = A[i * M + p * ROW_TILE_WIDTH + threadIdx.x];
-            shBTile[threadIdx.x][threadIdx.y] = B[(p * COL_TILE_WIDTH + threadIdx.y) * N + j];
-        }
-        __syncthreads();
-        if (i < M && j < N)
-        {
-            T value = 0;
-            for (int q = 0; q < COL_TILE_WIDTH; q++)
-            {
-                value += shATile[threadIdx.x][q] * shBTile[q][threadIdx.y];
-            }
+            acc += sh_a[xidx][k] * sh_b[k][yidx];
         }
         __syncthreads();
     }
-    C[i * M + j] = value * alpha + bias[i * M + j] * beta;
-}
 
-// if (i < M && j < N)
-// {
-//     T value = 0;
-//     for (int k = 0; k < K; k++)
-//     {
-//         value += A[i * M + k] * B[k * N + j];
-//     }
-//     C[i * M + j] = value * alpha + bias[i * M + j] * beta;
-// }
+    matrix_c[x * N + y] = acc;
+}
